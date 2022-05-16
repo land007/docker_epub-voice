@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EPUB.js Spreads Example</title>
+
+<!--   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script> -->
+  <script src="dist/jszip.min.js"></script>
+  <script src="dist/await-signals-0.1.1.js"></script>
+  <script src="dist/epub.js"></script>
+
+  <link rel="stylesheet" type="text/css" href="examples.css">
+
+</head>
+<body>
+  <!-- <div id="title"></div> -->
+  <select id="toc"></select>
+  <div id="viewer" class="spreads"></div>
+  <a id="prev" href="#prev" class="arrow">‹</a>
+  <a id="next" href="#next" class="arrow">›</a>
+
+  <audio id="audioId1" width="100" height="100" preload="metadata"></audio>
+  <audio id="audioId2" width="100" height="100" preload="metadata"></audio>
+  <script>
+  //语音
+  //var tts_server = 'https://speech.qhkly.com';
+  var tts_server = '';
+  var speak_list = [];
+  let signal1 = new Signal('end');
+  let signal2 = new Signal('end');
+  var audio1;
+  var audio2;
+	audio1 = document.getElementById("audioId1");
+	audio1.addEventListener("ended",function(){
+		//console.log('audio1 end');
+	    signal1.state = 'end';
+		if(signal1.state == 'end' && signal2.state == 'end' && speak_list.length == 0) {
+			//console.log('------------end-----------');
+			rendition.next();
+		}
+	    play_loop(null);
+	});
+	audio1.addEventListener("error", function () {
+		signal1.state = 'end';
+      	//console.log("event error1: " + (new Date()).getTime());
+	});
+	audio2 = document.getElementById("audioId2");
+	audio2.addEventListener("ended",function(){
+		//console.log('audio2 end');
+	    signal2.state = 'end';
+		if(signal1.state == 'end' && signal2.state == 'end' && speak_list.length == 0) {
+			//console.log('------------end-----------');
+			rendition.next();
+		}
+	    play_loop(null);
+	});
+	audio2.addEventListener("error", function () {
+		signal2.state = 'end';
+        //console.log("event error2: " + (new Date()).getTime());
+    });
+  var i = 0;
+  var old_speak = undefined;
+  var old_speak_timeout = undefined;
+  var play_loop = function(speak) {
+//  	console.log('i=' + i + ' signal1.state=' + signal1.state + ' signal2.state=' + signal2.state + ' speak=' + speak + ' speak_list=' + JSON.stringify(speak_list));
+  	if(speak === undefined || speak == '') {
+  		return;
+  	}
+  	if(speak != null) {
+  		speak = speak.replace(/<[^>]+>/g, ' ');
+  	}
+//  	console.log('speak', speak);
+  	if(speak != null) {
+  		if(old_speak !== undefined && old_speak == speak) {
+//  			console.log('阻断');
+  			return;
+  		} else {
+  			clearTimeout(old_speak_timeout)
+  			old_speak = speak;
+  			old_speak_timeout = setTimeout(() => {
+//  				console.log('清空');
+  				old_speak = undefined;;
+  			}, 2000);
+  		}
+  	}
+  	if(signal1.state == 'play' && signal2.state == 'play') {
+//  		console.log('缓存');
+  		speak_list.unshift(speak);
+  		return;
+  	}
+  	if(speak == null) {
+//  		console.log('取缓存');
+  		speak = speak_list.pop();
+  	}
+//  	console.log('播放');
+  	if(!(speak === undefined || speak == null || speak == '')) {
+  		if(i%2 == 0) {
+  			let a1 = async function(audio1, signal2, speak) {
+  				if(signal2.state != 'end') {
+  					await signal2.until('end');
+  				}
+  				try {
+  					//console.log('play1');
+  					audio1.play();
+  				} catch(e) {
+      				signal1.state = 'end';
+      		        //console.log("event play1: " + (new Date()).getTime());
+      			}
+  			};
+  			try {
+      			signal1.state = 'play';
+      			console.log('play1', speak);
+      			audio1.src = tts_server + '/v1/Speech?text=' + encodeURIComponent(speak) + '&lang=zh-CN&type=HuihuiRUS';
+  			} catch(e) {
+  				signal1.state = 'end';
+  		        //console.log("event src1: " + (new Date()).getTime());
+  			}
+  			a1(audio1, signal2, speak);
+//      	 		signal1 = new Signal('end');
+  		} else {
+  			let a2 = async function() {
+  				if(signal1.state != 'end') {
+  					await signal1.until('end');
+  				}
+  				try {
+  					//console.log('play2');
+  					audio2.play();
+  				} catch(e) {
+      				signal2.state = 'end';
+      		        //console.log("event play2: " + (new Date()).getTime());
+      			}
+  			};
+  			try {
+      			signal2.state = 'play';
+      			console.log('play2', speak);
+      			audio2.src = tts_server + '/v1/Speech?text=' + encodeURIComponent(speak) + '&lang=zh-CN&type=HuihuiRUS';
+  			} catch(e) {
+  				signal2.state = 'end';
+  		        //console.log("event src2: " + (new Date()).getTime());
+  			}
+  			a2(signal1);
+//      	 		signal2 = new Signal('end');
+  		}
+  		i++;
+//  		console.log('i++');
+  	}
+  };
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    var params = URLSearchParams && new URLSearchParams(document.location.search.substring(1));
+    var url = params && params.get("url") && decodeURIComponent(params.get("url"));
+    var currentSectionIndex = (params && params.get("loc")) ? params.get("loc") : undefined;
+
+    // Load the opf
+    //var book = ePub(url || "https://s3.amazonaws.com/moby-dick/moby-dick.epub");
+    //var book = ePub(url || "/moby-dick.epub");
+    var book = ePub(url || "/瓦尔登湖.epub");
+    var rendition = book.renderTo("viewer", {
+      width: "100%",
+      height: 600,
+      spread: "always"
+    });
+
+    rendition.display(currentSectionIndex);
+
+    book.ready.then(function() {
+
+      var next = document.getElementById("next");
+
+      next.addEventListener("click", function(e){
+        book.package.metadata.direction === "rtl" ? rendition.prev() : rendition.next();
+        e.preventDefault();
+      }, false);
+
+      var prev = document.getElementById("prev");
+      prev.addEventListener("click", function(e){
+        book.package.metadata.direction === "rtl" ? rendition.next() : rendition.prev();
+        e.preventDefault();
+      }, false);
+
+      var keyListener = function(e){
+
+        // Left Key
+        if ((e.keyCode || e.which) == 37) {
+          book.package.metadata.direction === "rtl" ? rendition.next() : rendition.prev();
+        }
+
+        // Right Key
+        if ((e.keyCode || e.which) == 39) {
+          book.package.metadata.direction === "rtl" ? rendition.prev() : rendition.next();
+        }
+
+      };
+
+      rendition.on("keyup", keyListener);
+      document.addEventListener("keyup", keyListener, false);
+
+    })
+
+    var title = document.getElementById("title");
+
+    rendition.on("rendered", function(section){
+      var current = book.navigation && book.navigation.get(section.href);
+
+      if (current) {
+        var $select = document.getElementById("toc");
+        var $selected = $select.querySelector("option[selected]");
+        if ($selected) {
+          $selected.removeAttribute("selected");
+        }
+
+        var $options = $select.querySelectorAll("option");
+        for (var i = 0; i < $options.length; ++i) {
+          let selected = $options[i].getAttribute("ref") === current.href;
+          if (selected) {
+            $options[i].setAttribute("selected", "");
+          }
+        }
+      }
+
+    });
+    const makeRangeCfi = (a, b) => {
+        const CFI = new ePub.CFI()
+        const start = CFI.parse(a), end = CFI.parse(b)
+        const cfi = {
+            range: true,
+            base: start.base,
+            path: {
+                steps: [],
+                terminal: null
+            },
+            start: start.path,
+            end: end.path
+        }
+        const len = cfi.start.steps.length
+        for (let i = 0; i < len; i++) {
+            if (CFI.equalStep(cfi.start.steps[i], cfi.end.steps[i])) {
+                if (i == len - 1) {
+                    // Last step is equal, check terminals
+                    if (cfi.start.terminal === cfi.end.terminal) {
+                        // CFI's are equal
+                        cfi.path.steps.push(cfi.start.steps[i])
+                        // Not a range
+                        cfi.range = false
+                    }
+                } else cfi.path.steps.push(cfi.start.steps[i])
+            } else break
+        }
+        cfi.start.steps = cfi.start.steps.slice(cfi.path.steps.length)
+        cfi.end.steps = cfi.end.steps.slice(cfi.path.steps.length)
+
+        return 'epubcfi(' + CFI.segmentString(cfi.base)
+            + '!' + CFI.segmentString(cfi.path)
+            + ',' + CFI.segmentString(cfi.start)
+            + ',' + CFI.segmentString(cfi.end)
+            + ')'
+    };
+    var play_duanluo = function(duanluo) {
+    	var juzi = duanluo.split(/。/g);
+        console.log(juzi);
+        for(var j in juzi) {
+            play_loop(juzi[j]);
+        }
+    }
+	var old_duanluo = '';
+    rendition.on("relocated", function(location) {
+      //console.log(location);
+      const [a, b] = [rendition.currentLocation().start.cfi, rendition.currentLocation().end.cfi]
+      book.getRange(makeRangeCfi(a, b)).then(range => {
+
+          speak_list = [];
+          signal1.state = 'end';
+          signal2.state = 'end';
+          audio1.pause();
+          audio1.currentTime = 0;
+          audio2.pause();
+          audio2.currentTime = 0;
+          i++;
+          
+    	  var txt = range.toString();
+          //console.log(txt);
+    	  var duanluos = txt.split(/\n/g);
+    	  for(var d in duanluos) {
+    		  var duanluo = duanluos[d];
+    		  if(old_duanluo != duanluo) {
+    			  old_duanluo = duanluo;
+    			  play_duanluo(duanluo);
+    		  } else {
+    			  //console.log('===============================');
+    		  }
+    	  }
+      })
+
+      var next = book.package.metadata.direction === "rtl" ?  document.getElementById("prev") : document.getElementById("next");
+      var prev = book.package.metadata.direction === "rtl" ?  document.getElementById("next") : document.getElementById("prev");
+
+      if (location.atEnd) {
+        next.style.visibility = "hidden";
+      } else {
+        next.style.visibility = "visible";
+      }
+
+      if (location.atStart) {
+        prev.style.visibility = "hidden";
+      } else {
+        prev.style.visibility = "visible";
+      }
+
+    });
+
+    rendition.on("layout", function(layout) {
+      let viewer = document.getElementById("viewer");
+
+      if (layout.spread) {
+        viewer.classList.remove('single');
+      } else {
+        viewer.classList.add('single');
+      }
+    });
+
+    window.addEventListener("unload", function () {
+      //console.log("unloading");
+      this.book.destroy();
+    });
+
+    book.loaded.navigation.then(function(toc){
+			var $select = document.getElementById("toc"),
+					docfrag = document.createDocumentFragment();
+
+			toc.forEach(function(chapter) {
+				var option = document.createElement("option");
+				option.textContent = chapter.label;
+				option.setAttribute("ref", chapter.href);
+
+				docfrag.appendChild(option);
+			});
+
+			$select.appendChild(docfrag);
+
+			$select.onchange = function(){
+					var index = $select.selectedIndex,
+							url = $select.options[index].getAttribute("ref");
+					rendition.display(url);
+					return false;
+			};
+
+		});
+
+
+
+
+  </script>
+
+</body>
+</html>
